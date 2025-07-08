@@ -1,5 +1,6 @@
 import os
 import paramiko
+import random
 from typing import List, Optional
 from utils.logger import get_logger
 from config import settings
@@ -8,44 +9,72 @@ logger = get_logger(__name__)
 
 class SFTPClient:
     """
-    Simple wrapper around Paramiko SFTPClient.
-    Reads host/port/credentials from app.config.settings.
+    SFTP client with multiple host support and reconnection logic.
     """
 
     def __init__(self):
-        self.host: str = settings.SFTP_HOST
-        self.port: int = settings.SFTP_PORT or 22
+        self.hosts: List[str] = settings.SFTP_HOSTS
+        self.port: int = settings.SFTP_PORT
         self.username: str = settings.SFTP_USER
         self.password: str = settings.SFTP_PASS
+        self.key_path: str = settings.KEY_PATH
         self.transport: Optional[paramiko.Transport] = None
-        self.client:  Optional[paramiko.SFTPClient] = None
+        self.client: Optional[paramiko.SFTPClient] = None
+        self.current_host: Optional[str] = None
 
     def connect(self) -> None:
         """
-        Establishes the SFTP connection if not already active.
+        Establishes SFTP connection with failover support.
         """
         if self.client and self.transport and self.transport.is_active():
             return
 
-        try:
-            logger.info(f"Connecting to SFTP {self.host}:{self.port} as {self.username}")
-            self.transport = paramiko.Transport((self.host, self.port))
-            self.transport.connect(username=self.username, password=self.password)
-            self.client = paramiko.SFTPClient.from_transport(self.transport)
-            logger.info("SFTP connection established")
-        except Exception as e:
-            logger.error(f"Error connecting to SFTP: {e}")
-            raise
+        # Shuffle hosts for load balancing
+        hosts = self.hosts.copy()
+        random.shuffle(hosts)
+
+        last_exception = None
+        for host in hosts:
+            try:
+                logger.info(f"Attempting to connect to SFTP {host}:{self.port} as {self.username}")
+                
+                self.transport = paramiko.Transport((host, self.port))
+                
+                # Try key-based authentication first
+                if os.path.exists(self.key_path):
+                    private_key = paramiko.RSAKey.from_private_key_file(self.key_path)
+                    self.transport.connect(username=self.username, pkey=private_key)
+                elif self.password:
+                    self.transport.connect(username=self.username, password=self.password)
+                else:
+                    raise ValueError("No authentication method available")
+                
+                self.client = paramiko.SFTPClient.from_transport(self.transport)
+                self.current_host = host
+                logger.info(f"SFTP connection established to {host}")
+                return
+                
+            except Exception as e:
+                logger.warning(f"Failed to connect to {host}: {e}")
+                last_exception = e
+                if self.transport:
+                    try:
+                        self.transport.close()
+                    except:
+                        pass
+                self.transport = None
+                self.client = None
+
+        raise ConnectionError(f"Failed to connect to any SFTP server. Last error: {last_exception}")
 
     def list_files(self, remote_dir: str) -> List[str]:
         """
-        List all entries (files & directories) in the given remote directory.
-        Returns full remote paths.
+        List all entries in the remote directory.
         """
         self.connect()
         try:
             names = self.client.listdir(remote_dir)
-            paths = [os.path.join(remote_dir, name) for name in names]
+            paths = [os.path.join(remote_dir, name).replace('\\', '/') for name in names]
             logger.debug(f"Listed {len(paths)} items in {remote_dir}")
             return paths
         except Exception as e:
@@ -54,7 +83,7 @@ class SFTPClient:
 
     def download_file(self, remote_path: str) -> bytes:
         """
-        Download the file at remote_path and return its raw bytes.
+        Download file and return raw bytes.
         """
         self.connect()
         try:
@@ -69,16 +98,16 @@ class SFTPClient:
 
     def close(self) -> None:
         """
-        Gracefully close the SFTP session and underlying transport.
+        Close SFTP connection.
         """
         if self.client:
             try:
                 self.client.close()
-            except Exception:
+            except:
                 pass
         if self.transport:
             try:
                 self.transport.close()
-            except Exception:
+            except:
                 pass
         logger.info("SFTP connection closed")
