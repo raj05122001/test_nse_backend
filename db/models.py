@@ -1,6 +1,22 @@
 from sqlalchemy import Column, Integer, BigInteger, SmallInteger, String, Index
 from db.connection import Base
 
+class StockHistorical(Base):
+    __tablename__ = "stock_historical"
+
+    id = Column(Integer, primary_key=True, index=True)
+    Sgmt = Column(String, nullable=True)  
+    Src = Column(String, nullable=True) 
+    SctySrs = Column(String, nullable=True)  
+    OpnPric = Column(String, nullable=True)  
+    HghPric = Column(String, nullable=True)  
+    LwPric = Column(String, nullable=True) 
+    ClsPric = Column(String, nullable=True) 
+    LastPric = Column(String, nullable=True)  
+    TtlTradgVol = Column(String, nullable=True) 
+    TradDt = Column(String, nullable=True)
+    TckrSymb = Column(String, nullable=True)
+
 class CMSnapshot(Base):
     __tablename__ = 'cm_snapshot'
     __table_args__ = (
