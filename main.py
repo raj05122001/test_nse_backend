@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from routers.rest import router as rest_router
 from routers.websocket import router as ws_router
 from routers.market import router as market_router
+from routers.indices import router as indices_router
+
 from services.broadcaster import broadcast_loop
 from services.sftp_watcher import start_sftp_watcher
 from db.connection import engine, Base
@@ -19,14 +21,14 @@ async def lifespan(app: FastAPI):
             await conn.run_sync(Base.metadata.create_all)
         
         # Start background tasks
-        broadcast_task = asyncio.create_task(broadcast_loop())
+        # broadcast_task = asyncio.create_task(broadcast_loop())
         sftp_task = asyncio.create_task(start_sftp_watcher())
         
         yield
         
     finally:
         # Shutdown
-        broadcast_task.cancel()
+        # broadcast_task.cancel()
         sftp_task.cancel()
         await engine.dispose()
 
@@ -38,6 +40,7 @@ app = FastAPI(
 )
 
 # Include routers
+app.include_router(indices_router)
 app.include_router(market_router)
 app.include_router(rest_router)
 app.include_router(ws_router)

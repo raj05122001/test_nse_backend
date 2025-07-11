@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, SmallInteger, String, Index, Float
+from sqlalchemy import Column, Integer, BigInteger, SmallInteger, String, Index, Float, Numeric, DateTime, func
 from db.connection import Base
 
 
@@ -88,6 +88,23 @@ class StockHistorical(Base):
     TtlTradgVol = Column(String, nullable=True) 
     TradDt = Column(String, nullable=True)
     TckrSymb = Column(String, nullable=True)
+
+
+class CMStockHistorical(Base):
+    __tablename__ = "cm_stock_historical"
+
+    symbol      = Column(String,   primary_key=True)
+    timestamp   = Column(BigInteger, primary_key=True)  # composite PK
+    open_price  = Column(Numeric(precision=12, scale=2), nullable=False)
+    high_price  = Column(Numeric(precision=12, scale=2), nullable=False)
+    low_price   = Column(Numeric(precision=12, scale=2), nullable=False)
+    close_price = Column(Numeric(precision=12, scale=2), nullable=False)
+    volume      = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        # index for faster time-range queries
+        Index("ix_cm_stock_historical_timestamp", "timestamp"),
+    )
 
 class CMSnapshot(Base):
     __tablename__ = 'cm_snapshot'
@@ -187,3 +204,7 @@ class CMContractStreamInfo(Base):
     series = Column(String(8), nullable=False)
 
 
+class ProcessedFile(Base):
+    __tablename__ = "processed_files"
+    remote_path = Column(String, primary_key=True, index=True)
+    processed_at = Column(DateTime, nullable=False, server_default=func.now())
