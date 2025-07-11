@@ -11,6 +11,8 @@ from routers.indices import router as indices_router
 from services.broadcaster import broadcast_loop
 from services.sftp_watcher import start_sftp_watcher
 from db.connection import engine, Base
+from services.BHAVCOPY.bhavcopy import start_sftp_bhavcopy
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +25,18 @@ async def lifespan(app: FastAPI):
         # Start background tasks
         # broadcast_task = asyncio.create_task(broadcast_loop())
         sftp_task = asyncio.create_task(start_sftp_watcher())
+
+        # 3) Schedule daily bhavcopy job at 06:00 IST
+        scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
+        scheduler.add_job(
+            lambda: asyncio.create_task(start_sftp_bhavcopy()),
+            trigger="cron",
+            hour=6,
+            minute=0,
+            id="daily_bhavcopy"
+        )
+        scheduler.start()
+        app.state.bhavcopy_scheduler = scheduler
         
         yield
         
@@ -30,6 +44,8 @@ async def lifespan(app: FastAPI):
         # Shutdown
         # broadcast_task.cancel()
         sftp_task.cancel()
+        # stop the bhavcopy scheduler
+        app.state.bhavcopy_scheduler.shutdown(wait=False)
         await engine.dispose()
 
 app = FastAPI(

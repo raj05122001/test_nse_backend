@@ -100,11 +100,25 @@ class CMStockHistorical(Base):
     low_price   = Column(Numeric(precision=12, scale=2), nullable=False)
     close_price = Column(Numeric(precision=12, scale=2), nullable=False)
     volume      = Column(BigInteger, nullable=False)
+    series = Column(String(4), nullable=False)
 
-    __table_args__ = (
-        # index for faster time-range queries
-        Index("ix_cm_stock_historical_timestamp", "timestamp"),
-    )
+class Demo(Base):
+    __tablename__ = "demo_stock_historical"
+
+    symbol      = Column(String,   primary_key=True)
+    timestamp   = Column(BigInteger, primary_key=True)  # composite PK
+    open_price  = Column(Numeric(precision=12, scale=2), nullable=False)
+    high_price  = Column(Numeric(precision=12, scale=2), nullable=False)
+    low_price   = Column(Numeric(precision=12, scale=2), nullable=False)
+    close_price = Column(Numeric(precision=12, scale=2), nullable=False)
+    volume      = Column(BigInteger, nullable=False)
+    series = Column(String(4), nullable=False)
+
+
+    # __table_args__ = (
+    #     # index for faster time-range queries
+    #     Index("ix_cm_stock_historical_timestamp", "timestamp"),
+    # )
 
 class CMSnapshot(Base):
     __tablename__ = 'cm_snapshot'
